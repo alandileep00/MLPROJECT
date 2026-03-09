@@ -1,287 +1,390 @@
-import streamlit as st
+from flask import Flask, render_template_string, request
 import pandas as pd
 import joblib
+import os
 
-# Set page config for aesthetics
-st.set_page_config(
-    page_title="Car Price Predictor",
-    page_icon="🚗",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+app = Flask(__name__)
 
-# Custom CSS for UI styling
-st.markdown("""
-<style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stButton>button {
-        width: 100%;
-        background-color: #007bff;
-        color: white;
-        border-radius: 5px;
-        padding: 10px 24px;
-        font-weight: bold;
-        transition: all 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #0056b3;
-    }
-    .metric-card {
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        padding: 20px;
-        text-align: center;
-        margin-top: 20px;
-    }
-    h1, h2, h3 {
-        color: #2c3e50;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Load models
+mlr_model = joblib.load('mlr_model.pkl')
+slr_model = joblib.load('slr_model.pkl')
+pr_model = joblib.load('pr_model.pkl')
+poly_converter = joblib.load('poly_converter.pkl')
+log_reg_model = joblib.load('log_reg_model.pkl')
+log_reg_threshold = joblib.load('log_reg_threshold.pkl')
+knn_model = joblib.load('knn_model.pkl')
+knn_scaler = joblib.load('knn_scaler.pkl')
 
-@st.cache_resource
-def load_models():
-    """Load the pre-trained models from disk."""
-    mlr_model = joblib.load('mlr_model.pkl')
-    slr_model = joblib.load('slr_model.pkl')
-    pr_model = joblib.load('pr_model.pkl')
-    poly_converter = joblib.load('poly_converter.pkl')
-    log_reg_model = joblib.load('log_reg_model.pkl')
-    log_reg_threshold = joblib.load('log_reg_threshold.pkl')
-    knn_model = joblib.load('knn_model.pkl')
-    knn_scaler = joblib.load('knn_scaler.pkl')
-    return mlr_model, slr_model, pr_model, poly_converter, log_reg_model, log_reg_threshold, knn_model, knn_scaler
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Price Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .navbar {
+            background: rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 16px 40px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .navbar h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            background: linear-gradient(90deg, #00d2ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 30px;
+        }
+        .tab {
+            padding: 10px 20px;
+            border-radius: 25px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #aaa;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .tab:hover { background: rgba(255,255,255,0.12); color: #fff; }
+        .tab.active {
+            background: linear-gradient(135deg, #7b2ff7, #00d2ff);
+            color: #fff;
+            border-color: transparent;
+        }
+        .card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 36px;
+        }
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 6px;
+            color: #fff;
+        }
+        .card .subtitle {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        input[type="number"], input[type="text"] {
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: #fff;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border 0.3s;
+        }
+        input:focus { border-color: #7b2ff7; }
+        .btn {
+            margin-top: 10px;
+            padding: 14px 36px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7b2ff7, #00d2ff);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.3s;
+            width: 100%;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(123, 47, 247, 0.4);
+        }
+        .result-card {
+            margin-top: 30px;
+            background: linear-gradient(135deg, rgba(123,47,247,0.15), rgba(0,210,255,0.10));
+            border: 1px solid rgba(123,47,247,0.3);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .result-card .label { font-size: 0.9rem; color: #aaa; margin-bottom: 8px; }
+        .result-card .price {
+            font-size: 2.8rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d2ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .result-card .classification {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .result-card .prob { color: #888; margin-top: 8px; font-size: 0.95rem; }
+        .warning {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(243, 156, 18, 0.15);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            border-radius: 8px;
+            color: #f39c12;
+            font-size: 0.85rem;
+        }
+        @media (max-width: 600px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .tabs { gap: 6px; }
+            .tab { font-size: 0.75rem; padding: 8px 14px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <span style="font-size:1.6rem;">🚗</span>
+        <h1>Car Price Predictor</h1>
+    </nav>
+    <div class="container">
+        <div class="tabs">
+            <a href="/?model=mlr" class="tab {{ 'active' if model=='mlr' }}">Multiple Linear Regression</a>
+            <a href="/?model=slr" class="tab {{ 'active' if model=='slr' }}">Simple Linear Regression</a>
+            <a href="/?model=poly" class="tab {{ 'active' if model=='poly' }}">Polynomial Regression</a>
+            <a href="/?model=knn" class="tab {{ 'active' if model=='knn' }}">K-Nearest Neighbors</a>
+            <a href="/?model=logistic" class="tab {{ 'active' if model=='logistic' }}">Logistic Regression</a>
+        </div>
 
-try:
-    mlr_model, slr_model, pr_model, poly_converter, log_reg_model, log_reg_threshold, knn_model, knn_scaler = load_models()
-except Exception as e:
-    st.error(f"Error loading models. Please ensure 'train_models.py' has been run. Details: {e}")
-    st.stop()
-
-# Sidebar Navigation
-st.sidebar.title("🚗 Navigation")
-st.sidebar.markdown('---')
-app_mode = st.sidebar.radio(
-    "Select Prediction Model",
-    ["Multiple Linear Regression", "Simple Linear Regression", "Polynomial Regression", "K-Nearest Neighbors", "Logistic Regression (Classification)"]
-)
-st.sidebar.markdown('---')
-
-
-# --- Multiple Linear Regression View ---
-if app_mode == "Multiple Linear Regression":
-    st.title("Price Predictor: Multiple Linear Regression")
-    st.markdown("Predict the selling price based on *multiple* features.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Car Details")
-        year = st.number_input("Year of Manufacture", min_value=1990, max_value=2024, value=2015, step=1)
-        km_driven = st.number_input("Kilometers Driven", min_value=0, max_value=1000000, value=50000, step=1000)
-        seats = st.number_input("Number of Seats", min_value=2, max_value=14, value=5, step=1)
-        
-    with col2:
-        st.subheader("Engine Specifications")
-        mileage = st.number_input("Mileage (km/ltr/kg)", min_value=0.0, max_value=50.0, value=20.0, step=0.5)
-        engine = st.number_input("Engine Capacity (CC)", min_value=500, max_value=5000, value=1197, step=100)
-        max_power = st.number_input("Max Power (bhp)", min_value=20.0, max_value=600.0, value=74.0, step=1.0)
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("Predict Price (MLR)", key="btn_mlr"):
-        # Make prediction
-        input_data = pd.DataFrame({
-            'year': [year],
-            'km_driven': [km_driven],
-            'mileage(km/ltr/kg)': [mileage],
-            'engine': [engine],
-            'max_power': [max_power],
-            'seats': [seats]
-        })
-        
-        try:
-            prediction = mlr_model.predict(input_data)[0]
-            
-            st.markdown(f"""
-            <div class="metric-card">
-                <h2>Predicted Selling Price</h2>
-                <h1 style="color: #27ae60; font-size: 3rem;">₹ {prediction:,.2f}</h1>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if prediction < 0:
-                st.warning("The model predicted a negative value, which usually means the input parameters are far outside the normal dataset boundaries.")
-                
-        except Exception as e:
-            st.error(f"Prediction Error: {e}")
-
-# --- Simple Linear Regression View ---
-elif app_mode == "Simple Linear Regression":
-    st.title("Price Predictor: Simple Linear Regression")
-    st.markdown("Predict the selling price based *only* on Kilometers Driven, using a simple linear relationship.")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    col_center, _ = st.columns([1, 1])
-    with col_center:
-        km_driven_slr = st.number_input("Kilometers Driven", min_value=0, max_value=1000000, value=50000, step=1000, key="km_slr")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        if st.button("Predict Price (SLR)", key="btn_slr"):
-            input_data_slr = pd.DataFrame({'km_driven': [km_driven_slr]})
-            
-            try:
-                prediction_slr = slr_model.predict(input_data_slr)[0]
-                
-                st.markdown(f"""
-                <div class="metric-card" style="margin-top: 10px;">
-                    <h2>Predicted Selling Price</h2>
-                    <h1 style="color: #2980b9; font-size: 3rem;">₹ {prediction_slr:,.2f}</h1>
+        {% if model == 'mlr' %}
+        <div class="card">
+            <h2>Multiple Linear Regression</h2>
+            <p class="subtitle">Predict selling price based on multiple features</p>
+            <form method="POST" action="/?model=mlr">
+                <div class="form-grid">
+                    <div class="form-group"><label>Year of Manufacture</label><input type="number" name="year" value="{{ values.year or 2015 }}" min="1990" max="2026"></div>
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group"><label>Mileage (km/ltr/kg)</label><input type="number" name="mileage" value="{{ values.mileage or 20.0 }}" step="0.5" min="0"></div>
+                    <div class="form-group"><label>Engine Capacity (CC)</label><input type="number" name="engine" value="{{ values.engine or 1197 }}" min="500"></div>
+                    <div class="form-group"><label>Max Power (bhp)</label><input type="number" name="max_power" value="{{ values.max_power or 74.0 }}" step="1" min="20"></div>
+                    <div class="form-group"><label>Number of Seats</label><input type="number" name="seats" value="{{ values.seats or 5 }}" min="2" max="14"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                if prediction_slr < 0:
-                    st.warning("The model predicted a negative value, which usually means the input parameters are far outside the normal dataset boundaries.")
-                    
-            except Exception as e:
-                st.error(f"Prediction Error: {e}")
+            </form>
+            {% if prediction is not none %}
+            <div class="result-card">
+                <div class="label">Predicted Selling Price</div>
+                <div class="price">₹ {{ prediction }}</div>
+                {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
+            </div>
+            {% endif %}
+        </div>
 
-# --- Polynomial Regression View ---
-elif app_mode == "Polynomial Regression":
-    st.title("Price Predictor: Polynomial Regression")
-    st.markdown("Predict the selling price based *only* on Kilometers Driven, using a polynomial degree (2) relationship.")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    col_center, _ = st.columns([1, 1]) # Keep input constrained
-    with col_center:
-        km_driven_poly = st.number_input("Kilometers Driven", min_value=0, max_value=1000000, value=50000, step=1000, key="km_poly")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        if st.button("Predict Price (Polynomial)", key="btn_poly"):
-            input_data_poly = pd.DataFrame({'km_driven': [km_driven_poly]})
-            
-            try:
-                # Transform input using polynomial converter
-                X_poly = poly_converter.transform(input_data_poly)
-                prediction_poly = pr_model.predict(X_poly)[0]
-                
-                st.markdown(f"""
-                <div class="metric-card" style="margin-top: 10px;">
-                    <h2>Predicted Selling Price</h2>
-                    <h1 style="color: #8e44ad; font-size: 3rem;">₹ {prediction_poly:,.2f}</h1>
+        {% elif model == 'slr' %}
+        <div class="card">
+            <h2>Simple Linear Regression</h2>
+            <p class="subtitle">Predict selling price based only on Kilometers Driven</p>
+            <form method="POST" action="/?model=slr">
+                <div class="form-grid">
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"Prediction Error: {e}")
-
-# --- K-Nearest Neighbors View ---
-elif app_mode == "K-Nearest Neighbors":
-    st.title("Price Predictor: K-Nearest Neighbors")
-    st.markdown("Predict the selling price using the **K-Nearest Neighbors (KNN)** algorithm.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Car Details")
-        year_knn = st.number_input("Year of Manufacture", min_value=1990, max_value=2024, value=2015, step=1, key="y_knn")
-        km_driven_knn = st.number_input("Kilometers Driven", min_value=0, max_value=1000000, value=50000, step=1000, key="km_knn")
-        seats_knn = st.number_input("Number of Seats", min_value=2, max_value=14, value=5, step=1, key="s_knn")
-        
-    with col2:
-        st.subheader("Engine Specifications")
-        mileage_knn = st.number_input("Mileage (km/ltr/kg)", min_value=0.0, max_value=50.0, value=20.0, step=0.5, key="m_knn")
-        engine_knn = st.number_input("Engine Capacity (CC)", min_value=500, max_value=5000, value=1197, step=100, key="e_knn")
-        max_power_knn = st.number_input("Max Power (bhp)", min_value=20.0, max_value=600.0, value=74.0, step=1.0, key="mp_knn")
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("Predict Price (KNN)", key="btn_knn"):
-        input_data_knn = pd.DataFrame({
-            'year': [year_knn],
-            'km_driven': [km_driven_knn],
-            'mileage(km/ltr/kg)': [mileage_knn],
-            'engine': [engine_knn],
-            'max_power': [max_power_knn],
-            'seats': [seats_knn]
-        })
-        
-        try:
-            # Scale the input data using the saved scaler
-            scaled_input = knn_scaler.transform(input_data_knn)
-            
-            # Make prediction
-            prediction_knn = knn_model.predict(scaled_input)[0]
-            
-            st.markdown(f"""
-            <div class="metric-card">
-                <h2>Predicted Selling Price</h2>
-                <h1 style="color: #e74c3c; font-size: 3rem;">₹ {prediction_knn:,.2f}</h1>
+            </form>
+            {% if prediction is not none %}
+            <div class="result-card">
+                <div class="label">Predicted Selling Price</div>
+                <div class="price">₹ {{ prediction }}</div>
+                {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
             </div>
-            """, unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"Prediction Error: {e}")
+            {% endif %}
+        </div>
 
-# --- Logistic Regression View ---
-elif app_mode == "Logistic Regression (Classification)":
-    st.title("Price Predictor: Logistic Regression")
-    st.markdown(f"Classify if the car is a **High Value** (above ₹ {log_reg_threshold:,.2f}) or **Standard Value** car.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Car Details")
-        year_lr = st.number_input("Year of Manufacture", min_value=1990, max_value=2024, value=2015, step=1, key="y_lr")
-        km_driven_lr = st.number_input("Kilometers Driven", min_value=0, max_value=1000000, value=50000, step=1000, key="km_lr")
-        seats_lr = st.number_input("Number of Seats", min_value=2, max_value=14, value=5, step=1, key="s_lr")
-        
-    with col2:
-        st.subheader("Engine Specifications")
-        mileage_lr = st.number_input("Mileage (km/ltr/kg)", min_value=0.0, max_value=50.0, value=20.0, step=0.5, key="m_lr")
-        engine_lr = st.number_input("Engine Capacity (CC)", min_value=500, max_value=5000, value=1197, step=100, key="e_lr")
-        max_power_lr = st.number_input("Max Power (bhp)", min_value=20.0, max_value=600.0, value=74.0, step=1.0, key="mp_lr")
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("Classify Car Value", key="btn_lr"):
-        input_data_lr = pd.DataFrame({
-            'year': [year_lr],
-            'km_driven': [km_driven_lr],
-            'mileage(km/ltr/kg)': [mileage_lr],
-            'engine': [engine_lr],
-            'max_power': [max_power_lr],
-            'seats': [seats_lr]
-        })
-        
-        try:
-            prediction_lr = log_reg_model.predict(input_data_lr)[0]
-            probability = log_reg_model.predict_proba(input_data_lr)[0]
-            
-            if prediction_lr == 1:
-                class_label = "High Value Car"
-                color = "#27ae60" # Green
-                prob_text = f"Probability: {probability[1]*100:.1f}%"
-            else:
-                class_label = "Standard Value Car"
-                color = "#f39c12" # Orange
-                prob_text = f"Probability: {probability[0]*100:.1f}%"
-            
-            st.markdown(f"""
-            <div class="metric-card">
-                <h2>Classification Result</h2>
-                <h1 style="color: {color}; font-size: 3rem;">{class_label}</h1>
-                <p style="font-size: 1.2rem; color: #7f8c8d;">{prob_text}</p>
-                <p>Based on a median threshold of ₹ {log_reg_threshold:,.2f}</p>
+        {% elif model == 'poly' %}
+        <div class="card">
+            <h2>Polynomial Regression</h2>
+            <p class="subtitle">Predict selling price using a degree-2 polynomial on Kilometers Driven</p>
+            <form method="POST" action="/?model=poly">
+                <div class="form-grid">
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
+                </div>
+            </form>
+            {% if prediction is not none %}
+            <div class="result-card">
+                <div class="label">Predicted Selling Price</div>
+                <div class="price">₹ {{ prediction }}</div>
             </div>
-            """, unsafe_allow_html=True)
-            
+            {% endif %}
+        </div>
+
+        {% elif model == 'knn' %}
+        <div class="card">
+            <h2>K-Nearest Neighbors</h2>
+            <p class="subtitle">Predict selling price using the KNN algorithm</p>
+            <form method="POST" action="/?model=knn">
+                <div class="form-grid">
+                    <div class="form-group"><label>Year of Manufacture</label><input type="number" name="year" value="{{ values.year or 2015 }}" min="1990" max="2026"></div>
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group"><label>Mileage (km/ltr/kg)</label><input type="number" name="mileage" value="{{ values.mileage or 20.0 }}" step="0.5" min="0"></div>
+                    <div class="form-group"><label>Engine Capacity (CC)</label><input type="number" name="engine" value="{{ values.engine or 1197 }}" min="500"></div>
+                    <div class="form-group"><label>Max Power (bhp)</label><input type="number" name="max_power" value="{{ values.max_power or 74.0 }}" step="1" min="20"></div>
+                    <div class="form-group"><label>Number of Seats</label><input type="number" name="seats" value="{{ values.seats or 5 }}" min="2" max="14"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
+                </div>
+            </form>
+            {% if prediction is not none %}
+            <div class="result-card">
+                <div class="label">Predicted Selling Price</div>
+                <div class="price">₹ {{ prediction }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% elif model == 'logistic' %}
+        <div class="card">
+            <h2>Logistic Regression (Classification)</h2>
+            <p class="subtitle">Classify if the car is High Value (above ₹ {{ threshold }}) or Standard Value</p>
+            <form method="POST" action="/?model=logistic">
+                <div class="form-grid">
+                    <div class="form-group"><label>Year of Manufacture</label><input type="number" name="year" value="{{ values.year or 2015 }}" min="1990" max="2026"></div>
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group"><label>Mileage (km/ltr/kg)</label><input type="number" name="mileage" value="{{ values.mileage or 20.0 }}" step="0.5" min="0"></div>
+                    <div class="form-group"><label>Engine Capacity (CC)</label><input type="number" name="engine" value="{{ values.engine or 1197 }}" min="500"></div>
+                    <div class="form-group"><label>Max Power (bhp)</label><input type="number" name="max_power" value="{{ values.max_power or 74.0 }}" step="1" min="20"></div>
+                    <div class="form-group"><label>Number of Seats</label><input type="number" name="seats" value="{{ values.seats or 5 }}" min="2" max="14"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Classify Car Value</button></div>
+                </div>
+            </form>
+            {% if classification is not none %}
+            <div class="result-card">
+                <div class="label">Classification Result</div>
+                <div class="classification" style="color: {{ 'limegreen' if classification == 'High Value Car' else '#f39c12' }}">{{ classification }}</div>
+                <div class="prob">{{ prob_text }}</div>
+                <div class="prob">Based on median threshold of ₹ {{ threshold }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+"""
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    model = request.args.get('model', 'mlr')
+    prediction = None
+    classification = None
+    prob_text = None
+    warning = None
+    values = {}
+    threshold = f"{log_reg_threshold:,.2f}"
+
+    if request.method == 'POST':
+        values = request.form.to_dict()
+
+        try:
+            if model == 'mlr':
+                input_data = pd.DataFrame({
+                    'year': [float(values['year'])],
+                    'km_driven': [float(values['km_driven'])],
+                    'mileage(km/ltr/kg)': [float(values['mileage'])],
+                    'engine': [float(values['engine'])],
+                    'max_power': [float(values['max_power'])],
+                    'seats': [float(values['seats'])]
+                })
+                pred = mlr_model.predict(input_data)[0]
+                prediction = f"{pred:,.2f}"
+                if pred < 0:
+                    warning = "The model predicted a negative value — input may be outside the training data range."
+
+            elif model == 'slr':
+                input_data = pd.DataFrame({'km_driven': [float(values['km_driven'])]})
+                pred = slr_model.predict(input_data)[0]
+                prediction = f"{pred:,.2f}"
+                if pred < 0:
+                    warning = "The model predicted a negative value — input may be outside the training data range."
+
+            elif model == 'poly':
+                input_data = pd.DataFrame({'km_driven': [float(values['km_driven'])]})
+                X_poly = poly_converter.transform(input_data)
+                pred = pr_model.predict(X_poly)[0]
+                prediction = f"{pred:,.2f}"
+
+            elif model == 'knn':
+                input_data = pd.DataFrame({
+                    'year': [float(values['year'])],
+                    'km_driven': [float(values['km_driven'])],
+                    'mileage(km/ltr/kg)': [float(values['mileage'])],
+                    'engine': [float(values['engine'])],
+                    'max_power': [float(values['max_power'])],
+                    'seats': [float(values['seats'])]
+                })
+                scaled_input = knn_scaler.transform(input_data)
+                pred = knn_model.predict(scaled_input)[0]
+                prediction = f"{pred:,.2f}"
+
+            elif model == 'logistic':
+                input_data = pd.DataFrame({
+                    'year': [float(values['year'])],
+                    'km_driven': [float(values['km_driven'])],
+                    'mileage(km/ltr/kg)': [float(values['mileage'])],
+                    'engine': [float(values['engine'])],
+                    'max_power': [float(values['max_power'])],
+                    'seats': [float(values['seats'])]
+                })
+                pred = log_reg_model.predict(input_data)[0]
+                probability = log_reg_model.predict_proba(input_data)[0]
+                if pred == 1:
+                    classification = "High Value Car"
+                    prob_text = f"Probability: {probability[1]*100:.1f}%"
+                else:
+                    classification = "Standard Value Car"
+                    prob_text = f"Probability: {probability[0]*100:.1f}%"
+
         except Exception as e:
-            st.error(f"Classification Error: {e}")
+            warning = f"Prediction Error: {e}"
+
+    return render_template_string(HTML_TEMPLATE,
+                                  model=model,
+                                  prediction=prediction,
+                                  classification=classification,
+                                  prob_text=prob_text,
+                                  warning=warning,
+                                  values=values,
+                                  threshold=threshold)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
