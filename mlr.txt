@@ -1,0 +1,83 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+from google.colab import files
+uploaded = files.upload()
+
+data = pd.read_csv("cardekho.csv")
+data.head()
+
+data.info()
+
+data.describe()
+
+X = data[['year','km_driven','mileage(km/ltr/kg)','engine','max_power','seats']]
+
+Y = data['selling_price']
+
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42
+)
+
+data = data.replace(' ', np.nan)
+
+data['mileage(km/ltr/kg)'] = data['mileage(km/ltr/kg)'].astype(str).str.split().str[0]
+data['mileage(km/ltr/kg)'] = pd.to_numeric(data['mileage(km/ltr/kg)'], errors='coerce')
+
+data['engine'] = data['engine'].astype(str).str.split().str[0]
+data['engine'] = pd.to_numeric(data['engine'], errors='coerce')
+
+data['max_power'] = data['max_power'].astype(str).str.split().str[0]
+data['max_power'] = pd.to_numeric(data['max_power'], errors='coerce')
+
+data = data.dropna()
+
+X = data[['year','km_driven','mileage(km/ltr/kg)','engine','max_power','seats']]
+Y = data['selling_price']
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42
+)
+
+from sklearn.linear_model import LinearRegression
+
+model = LinearRegression()
+model.fit(X_train, Y_train)
+
+Y_pred = model.predict(X_test)
+
+print("Predicted Prices:")
+print(Y_pred[:10])
+
+results = pd.DataFrame({
+    "Actual Price": Y_test,
+    "Predicted Price": Y_pred
+})
+
+print(results.head(10))
+
+from sklearn.metrics import r2_score
+
+score = r2_score(Y_test, Y_pred)
+
+print("R2 Score:", score)
+
+print("Intercept:", model.intercept_)
+print("Coefficients:", model.coef_)
+
+import matplotlib.pyplot as plt
+
+plt.scatter(Y_test, Y_pred)
+
+plt.xlabel("Actual Price")
+plt.ylabel("Predicted Price")
+plt.title("Actual vs Predicted Car Price")
+
+plt.show()

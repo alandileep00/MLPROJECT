@@ -1,0 +1,43 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
+
+from google.colab import files
+uploaded = files.upload()
+
+data = pd.read_csv("cardekho.csv")
+data.head()
+
+data['mileage(km/ltr/kg)'] = data['mileage(km/ltr/kg)'].astype(str).str.split().str[0]
+data['mileage(km/ltr/kg)'] = pd.to_numeric(data['mileage(km/ltr/kg)'], errors='coerce')
+
+data = data.dropna()
+
+X = data[['km_driven']]
+Y = data['selling_price']
+
+poly = PolynomialFeatures(degree=2)
+X_poly = poly.fit_transform(X)
+
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X_poly, Y, test_size=0.2, random_state=42
+)
+
+model = LinearRegression()
+model.fit(X_train, Y_train)
+
+Y_pred = model.predict(X_test)
+print(Y_pred[:10])
+
+plt.scatter(X, Y)
+
+plt.xlabel("Kilometers Driven")
+plt.ylabel("Selling Price")
+
+plt.title("Polynomial Regression Model")
+
+plt.show()
