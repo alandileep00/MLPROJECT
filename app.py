@@ -14,6 +14,9 @@ log_reg_model = joblib.load('log_reg_model.pkl')
 log_reg_threshold = joblib.load('log_reg_threshold.pkl')
 knn_model = joblib.load('knn_model.pkl')
 knn_scaler = joblib.load('knn_scaler.pkl')
+knn_clf_model = joblib.load('knn_clf_model.pkl')
+knn_clf_scaler = joblib.load('knn_clf_scaler.pkl')
+knn_clf_threshold = joblib.load('knn_clf_threshold.pkl')
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -185,6 +188,7 @@ HTML_TEMPLATE = """
             <a href="/?model=slr" class="tab {{ 'active' if model=='slr' }}">Simple Linear Regression</a>
             <a href="/?model=poly" class="tab {{ 'active' if model=='poly' }}">Polynomial Regression</a>
             <a href="/?model=knn" class="tab {{ 'active' if model=='knn' }}">K-Nearest Neighbors</a>
+            <a href="/?model=knn_clf" class="tab {{ 'active' if model=='knn_clf' }}">KNN Classification</a>
             <a href="/?model=logistic" class="tab {{ 'active' if model=='logistic' }}">Logistic Regression</a>
         </div>
 
@@ -268,6 +272,31 @@ HTML_TEMPLATE = """
             <div class="result-card">
                 <div class="label">Predicted Selling Price</div>
                 <div class="price">₹ {{ prediction }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% elif model == 'knn_clf' %}
+        <div class="card">
+            <h2>KNN Classification</h2>
+            <p class="subtitle">Classify if the car is High Value (above ₹ {{ knn_threshold }}) or Standard Value using KNN</p>
+            <form method="POST" action="/?model=knn_clf">
+                <div class="form-grid">
+                    <div class="form-group"><label>Year of Manufacture</label><input type="number" name="year" value="{{ values.year or 2015 }}" min="1990" max="2026"></div>
+                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
+                    <div class="form-group"><label>Mileage (km/ltr/kg)</label><input type="number" name="mileage" value="{{ values.mileage or 20.0 }}" step="0.5" min="0"></div>
+                    <div class="form-group"><label>Engine Capacity (CC)</label><input type="number" name="engine" value="{{ values.engine or 1197 }}" min="500"></div>
+                    <div class="form-group"><label>Max Power (bhp)</label><input type="number" name="max_power" value="{{ values.max_power or 74.0 }}" step="1" min="20"></div>
+                    <div class="form-group"><label>Number of Seats</label><input type="number" name="seats" value="{{ values.seats or 5 }}" min="2" max="14"></div>
+                    <div class="form-group full"><button class="btn" type="submit">Classify Car (KNN)</button></div>
+                </div>
+            </form>
+            {% if classification is not none %}
+            <div class="result-card">
+                <div class="label">KNN Classification Result</div>
+                <div class="classification" style="color: {{ 'limegreen' if classification == 'High Value Car' else '#f39c12' }}">{{ classification }}</div>
+                <div class="prob">{{ prob_text }}</div>
+                <div class="prob">Based on median threshold of ₹ {{ knn_threshold }}</div>
             </div>
             {% endif %}
         </div>
@@ -356,6 +385,25 @@ def index():
                 pred = knn_model.predict(scaled_input)[0]
                 prediction = f"{pred:,.2f}"
 
+            elif model == 'knn_clf':
+                input_data = pd.DataFrame({
+                    'year': [float(values['year'])],
+                    'km_driven': [float(values['km_driven'])],
+                    'mileage(km/ltr/kg)': [float(values['mileage'])],
+                    'engine': [float(values['engine'])],
+                    'max_power': [float(values['max_power'])],
+                    'seats': [float(values['seats'])]
+                })
+                scaled_input = knn_clf_scaler.transform(input_data)
+                pred = knn_clf_model.predict(scaled_input)[0]
+                probability = knn_clf_model.predict_proba(scaled_input)[0]
+                if pred == 1:
+                    classification = "High Value Car"
+                    prob_text = f"Probability: {probability[1]*100:.1f}%"
+                else:
+                    classification = "Standard Value Car"
+                    prob_text = f"Probability: {probability[0]*100:.1f}%"
+
             elif model == 'logistic':
                 input_data = pd.DataFrame({
                     'year': [float(values['year'])],
@@ -384,7 +432,8 @@ def index():
                                   prob_text=prob_text,
                                   warning=warning,
                                   values=values,
-                                  threshold=threshold)
+                                  threshold=threshold,
+                                  knn_threshold=f"{knn_clf_threshold:,.2f}")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

@@ -1,10 +1,10 @@
-import pandas as pd
+ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
-from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.metrics import r2_score, accuracy_score
 
 def clean_data(df):
@@ -141,6 +141,35 @@ def train_knn_regression(df):
     joblib.dump(scaler, 'knn_scaler.pkl')
     print("Saved 'knn_model.pkl' and 'knn_scaler.pkl'")
 
+def train_knn_classification(df):
+    print("Training K-Nearest Neighbors Classification Model...")
+    
+    # Create binary classification target (above or below median price)
+    median_price = df['selling_price'].median()
+    print(f"KNN Classification - Median Price threshold: {median_price}")
+    
+    Y = (df['selling_price'] > median_price).astype(int)
+    X = df[['year', 'km_driven', 'mileage(km/ltr/kg)', 'engine', 'max_power', 'seats']]
+    
+    # KNN requires feature scaling
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    X_train, X_test, Y_train, Y_test = train_test_split(X_scaled, Y, test_size=0.2, random_state=42)
+    
+    model = KNeighborsClassifier(n_neighbors=5)
+    model.fit(X_train, Y_train)
+    
+    Y_pred = model.predict(X_test)
+    acc = accuracy_score(Y_test, Y_pred)
+    print(f"KNN Classification Accuracy: {acc:.4f}")
+    
+    # Save the model, scaler, and threshold
+    joblib.dump(model, 'knn_clf_model.pkl')
+    joblib.dump(scaler, 'knn_clf_scaler.pkl')
+    joblib.dump(median_price, 'knn_clf_threshold.pkl')
+    print("Saved 'knn_clf_model.pkl', 'knn_clf_scaler.pkl', and 'knn_clf_threshold.pkl'")
+
 if __name__ == "__main__":
     try:
         # Load the dataset
@@ -173,6 +202,11 @@ if __name__ == "__main__":
         
         # Train Logistic Regression
         train_logistic_regression(cleaned_data)
+        
+        print("-" * 30)
+        
+        # Train KNN Classifier
+        train_knn_classification(cleaned_data)
         
         print("All models trained and saved successfully.")
     except Exception as e:
