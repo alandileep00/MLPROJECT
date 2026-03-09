@@ -12,8 +12,6 @@ pr_model = joblib.load('pr_model.pkl')
 poly_converter = joblib.load('poly_converter.pkl')
 log_reg_model = joblib.load('log_reg_model.pkl')
 log_reg_threshold = joblib.load('log_reg_threshold.pkl')
-knn_model = joblib.load('knn_model.pkl')
-knn_scaler = joblib.load('knn_scaler.pkl')
 knn_clf_model = joblib.load('knn_clf_model.pkl')
 knn_clf_scaler = joblib.load('knn_clf_scaler.pkl')
 knn_clf_threshold = joblib.load('knn_clf_threshold.pkl')
@@ -187,7 +185,6 @@ HTML_TEMPLATE = """
             <a href="/?model=mlr" class="tab {{ 'active' if model=='mlr' }}">Multiple Linear Regression</a>
             <a href="/?model=slr" class="tab {{ 'active' if model=='slr' }}">Simple Linear Regression</a>
             <a href="/?model=poly" class="tab {{ 'active' if model=='poly' }}">Polynomial Regression</a>
-            <a href="/?model=knn" class="tab {{ 'active' if model=='knn' }}">K-Nearest Neighbors</a>
             <a href="/?model=knn_clf" class="tab {{ 'active' if model=='knn_clf' }}">KNN Classification</a>
             <a href="/?model=logistic" class="tab {{ 'active' if model=='logistic' }}">Logistic Regression</a>
         </div>
@@ -242,29 +239,6 @@ HTML_TEMPLATE = """
             <form method="POST" action="/?model=poly">
                 <div class="form-grid">
                     <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
-                    <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
-                </div>
-            </form>
-            {% if prediction is not none %}
-            <div class="result-card">
-                <div class="label">Predicted Selling Price</div>
-                <div class="price">₹ {{ prediction }}</div>
-            </div>
-            {% endif %}
-        </div>
-
-        {% elif model == 'knn' %}
-        <div class="card">
-            <h2>K-Nearest Neighbors</h2>
-            <p class="subtitle">Predict selling price using the KNN algorithm</p>
-            <form method="POST" action="/?model=knn">
-                <div class="form-grid">
-                    <div class="form-group"><label>Year of Manufacture</label><input type="number" name="year" value="{{ values.year or 2015 }}" min="1990" max="2026"></div>
-                    <div class="form-group"><label>Kilometers Driven</label><input type="number" name="km_driven" value="{{ values.km_driven or 50000 }}" min="0"></div>
-                    <div class="form-group"><label>Mileage (km/ltr/kg)</label><input type="number" name="mileage" value="{{ values.mileage or 20.0 }}" step="0.5" min="0"></div>
-                    <div class="form-group"><label>Engine Capacity (CC)</label><input type="number" name="engine" value="{{ values.engine or 1197 }}" min="500"></div>
-                    <div class="form-group"><label>Max Power (bhp)</label><input type="number" name="max_power" value="{{ values.max_power or 74.0 }}" step="1" min="20"></div>
-                    <div class="form-group"><label>Number of Seats</label><input type="number" name="seats" value="{{ values.seats or 5 }}" min="2" max="14"></div>
                     <div class="form-group full"><button class="btn" type="submit">Predict Price</button></div>
                 </div>
             </form>
@@ -370,19 +344,6 @@ def index():
                 input_data = pd.DataFrame({'km_driven': [float(values['km_driven'])]})
                 X_poly = poly_converter.transform(input_data)
                 pred = pr_model.predict(X_poly)[0]
-                prediction = f"{pred:,.2f}"
-
-            elif model == 'knn':
-                input_data = pd.DataFrame({
-                    'year': [float(values['year'])],
-                    'km_driven': [float(values['km_driven'])],
-                    'mileage(km/ltr/kg)': [float(values['mileage'])],
-                    'engine': [float(values['engine'])],
-                    'max_power': [float(values['max_power'])],
-                    'seats': [float(values['seats'])]
-                })
-                scaled_input = knn_scaler.transform(input_data)
-                pred = knn_model.predict(scaled_input)[0]
                 prediction = f"{pred:,.2f}"
 
             elif model == 'knn_clf':

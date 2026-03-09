@@ -4,7 +4,7 @@ import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import PolynomialFeatures, StandardScaler
-from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import r2_score, accuracy_score
 
 def clean_data(df):
@@ -117,30 +117,6 @@ def train_logistic_regression(df):
     joblib.dump(median_price, 'log_reg_threshold.pkl')
     print("Saved 'log_reg_model.pkl' and 'log_reg_threshold.pkl'")
 
-def train_knn_regression(df):
-    print("Training K-Nearest Neighbors Regression Model...")
-    X = df[['year', 'km_driven', 'mileage(km/ltr/kg)', 'engine', 'max_power', 'seats']]
-    Y = df['selling_price']
-    
-    # KNN requires feature scaling for good performance
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    
-    X_train, X_test, Y_train, Y_test = train_test_split(X_scaled, Y, test_size=0.2, random_state=42)
-    
-    # Using 5 neighbors as a standard starting point
-    model = KNeighborsRegressor(n_neighbors=5)
-    model.fit(X_train, Y_train)
-    
-    Y_pred = model.predict(X_test)
-    score = r2_score(Y_test, Y_pred)
-    print(f"KNN R2 Score: {score:.4f}")
-    
-    # Save the model and the scaler
-    joblib.dump(model, 'knn_model.pkl')
-    joblib.dump(scaler, 'knn_scaler.pkl')
-    print("Saved 'knn_model.pkl' and 'knn_scaler.pkl'")
-
 def train_knn_classification(df):
     print("Training K-Nearest Neighbors Classification Model...")
     
@@ -192,11 +168,6 @@ if __name__ == "__main__":
         
         # Train PR
         train_polynomial_regression(cleaned_data)
-        
-        print("-" * 30)
-        
-        # Train KNN
-        train_knn_regression(cleaned_data)
         
         print("-" * 30)
         
